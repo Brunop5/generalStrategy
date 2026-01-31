@@ -56,8 +56,10 @@ class Strategy(ABC):
     data: pd.DataFrame | None
 
     def __init__(self):
-        self.load_metadata()
         self.data = self.gather_data()
+        if not self.load_metadata():
+            self.active_orders = []
+
 
 
     def _serialize(self, value, csv_filename: str):
@@ -135,37 +137,46 @@ class Strategy(ABC):
 
         return {key: self._deserialize(val) for key, val in value.items()}
 
-    def save_data(self, csv_filename: str, metadata_filename: str) -> None:
+    def save_data(self) -> None:
         """
         Saves information about current strategy to a json file,
-        also saves the self.data into a csv
+        also saves the self.data into a csv.
+        Skips attributes that are not JSON-serializable (e.g. threading.Lock).
         """
         if isinstance(getattr(self, "data", None), pd.DataFrame):
-            self.data.to_csv(csv_filename, index=False)
+            self.data.to_csv(self.csv_filename, index=False)
 
-        payload = {
-            key: self._serialize(val, csv_filename)
-            for key, val in self.__dict__.items()
-        }
+        payload = {}
+        for key, val in self.__dict__.items():
+            if key.startswith("_"):
+                continue
+            try:
+                serialized = self._serialize(val, self.csv_filename)
+                json.dumps(serialized)
+                payload[key] = serialized
+            except (TypeError, ValueError):
+                continue
 
         if "data" in payload:
-            payload["data"] = {"__type__": "dataframe_csv", "path": csv_filename}
+            payload["data"] = {"__type__": "dataframe_csv", "path": self.csv_filename}
 
-        with open(metadata_filename, "w", encoding="utf-8") as f:
+        with open(self.metadata_filename, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-    def load_metadata(self, filename: str) -> None:
+    def load_metadata(self) -> bool:
         """
         Loads metadata of a strategy from a json file, fills a new object with it
         """
-        if not os.path.exists(filename):
-            return
+        if not os.path.exists(self.metadata_filename):
+            return False
 
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(self.metadata_filename, "r", encoding="utf-8") as f:
             payload = json.load(f)
 
         for key, val in payload.items():
             setattr(self, key, self._deserialize(val))
+
+        return True
 
 
     @abstractmethod
@@ -190,7 +201,7 @@ class Strategy(ABC):
     def calculate_order_size(self, **kwargs):
         """
         Calculates the order size based on broker requirements 
-        and maybe some oether specifications
+        and maybe some other specifications
         """
         pass
 
