@@ -1,12 +1,12 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-      {
-        "name": "Run FVG strategy",
-        "type": "python",
-        "request": "launch",
-        "module": "trading_bots.FVG_projectX_bot.FVG_strategy",
-        "cwd": "${workspaceFolder}/.."
-      }
-    ]
-  }
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run FVG ProjectX",
+      "type": "python",
+      "request": "launch",
+      "module": "FVG_projectX_bot.projectX.FVG_projectX",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

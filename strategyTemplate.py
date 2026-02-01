@@ -56,7 +56,10 @@ class Strategy(ABC):
     data: pd.DataFrame | None
 
     def __init__(self):
+        print("layer 1 init ran!")
         self.data = self.gather_data()
+        print(f"📊 Loaded {len(self.data)} bars for {self.asset}")
+
         if not self.load_metadata():
             self.active_orders = []
 
@@ -176,6 +179,7 @@ class Strategy(ABC):
         for key, val in payload.items():
             setattr(self, key, self._deserialize(val))
 
+        print("loaded json data")
         return True
 
 

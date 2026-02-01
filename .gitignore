@@ -1,5 +1,8 @@
 FVG_projectX_bot/
 VIX_grid_trader/
 
+
+*.csv
+*.json
 __pycache__/
 .venv/
