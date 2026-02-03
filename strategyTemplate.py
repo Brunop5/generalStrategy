@@ -73,7 +73,11 @@ class Strategy(ABC):
             return {"__type__": "dataframe_csv", "path": csv_filename}
 
         if isinstance(value, dict):
-            return {key: self._serialize(val, csv_filename) for key, val in value.items()}
+            return {
+                key: self._serialize(val, csv_filename)
+                for key, val in value.items()
+                if not str(key).startswith("_")
+            }
 
         if isinstance(value, list):
             return [self._serialize(item, csv_filename) for item in value]

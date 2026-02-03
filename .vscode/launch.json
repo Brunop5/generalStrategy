@@ -2,6 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Run FVG Binance",
+      "type": "python",
+      "request": "launch",
+      "module": "FVG_projectX_bot.binance.FVG_binance",
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Run FVG ProjectX",
       "type": "python",
       "request": "launch",
