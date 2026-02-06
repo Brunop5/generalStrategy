@@ -1,10 +1,8 @@
-FVG_projectX_bot/
-VIX_grid_trader/
-
-.env/
+.env
 *.csv
 *.json
-__pycache__/
-.venv/
+*/
+!.vscode/
 
-PLAN.md
+# on laptop
+sendmail.py
