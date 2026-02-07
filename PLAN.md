@@ -1,126 +1,106 @@
-PLAN.md
+---
+name: partial-close-plan
+overview: Plan to add ATR-step partial close logic by splitting positions into fixed-size child orders and enforcing exact size multipliers, implemented in shared strategy so backtest and brokers inherit it.
+todos:
+  - id: add-config
+    content: Add constants and validation for split sizing
+    status: pending
+  - id: split-entry
+    content: Create N child orders per entry
+    status: pending
+  - id: partial-close
+    content: Implement ATR step close logic per order
+    status: pending
+  - id: wire-up
+    content: Confirm strategy/backtest/broker bookkeeping
+    status: pending
+isProject: false
+---
 
-Goal
-- Add pyramiding without touching code yet. Only document a clear design.
-- Keep client-configurable inputs in `FVG_strategy.py`.
-- Allow an alternate pyramiding mode for you in the Binance runner without code duplication or overriding existing strategy methods.
+# Plan: ATR-Step Partial Close via Split Orders
 
-Constraints and current structure (observed)
-- `FVG_Strategy` implements core logic: entry, zones, stops, checks.
-- Binance/backtest subclasses mostly provide API-specific plumbing.
-- `entry_logic()` currently blocks if `len(self.active_orders) > 0`.
-- `fvg_zones` are marked `mitigated` when a trade is opened (single-entry today).
-- Orders are stored in `active_orders`, and closing uses only `active_orders[0]` in several places.
+## Context and Intended Behavior
 
-Desired behaviors
-Client pyramiding (single composite position):
-- Treat pyramiding as one evolving position, not multiple independent orders.
-- If a position is open and price moves in profit by X ATR, add size to the same position.
-- X ATR uses the ATR value at entry; client wants "distance equivalent to TP_MULTIPLIER = 1".
-- Stop/TP/trailing updates continue to operate on a single position object.
-- Inputs needed:
-  - allow pyramiding (bool)
-  - atr step size for add-ons (float, in ATR units; default 1.0 to match TP_MULTIPLIER=1)
-  - add-on size (separate from base; can be fixed or % of base)
-  - optional: max add-ons (safety)
-  - optional: direction (only add in same direction as open order)
+- Goal: implement partial close behavior by **opening multiple fixed-size child orders** (no reduce-position support) and closing those child orders at ATR step targets.
+- Steps are measured from **original entry price** at `n*ATR`, `2n*ATR`, ... in profit direction, and similarly `n*ATR`, `2n*ATR`, ... against for loss-based exits.
+- Each child order size is `EACH_TRADE_SIZE`, repeated until total equals `FIXED_LOT`.
+- Enforce **exact multiplier**: `FIXED_LOT % EACH_TRADE_SIZE == 0`. If not, raise a clear error so the user sees it.
 
-Your pyramiding (simple max concurrent orders):
-- Single input: max simultaneous orders.
-- No "already opened" check; entries can occur while a position exists.
-- Still mark FVG zones mitigated once used.
+## Files to Change
 
-Design principles (no code yet)
-- Avoid duplicating or overriding `entry_logic()` in subclasses.
-- Keep only the client’s configurable constants in `FVG_strategy.py`.
-- Add extension hooks that a subclass can provide without copying logic.
-- Add a small, composable "pyramiding policy" object that the strategy can call.
+- `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/FVG_strategy.py`
+- `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/backtest/FVG_backtest.py`
+- `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/projectX/FVG_projectX.py`
+- (No changes to `/home/bruno/programming/python/tradingBots/strategyTemplate.py` unless a shared helper is needed; prefer keeping logic in `FVG_Strategy`.)
 
-Proposed architecture
-1) Add a pyramiding policy interface (non-API, pure logic)
-   - Create a small class or protocol with:
-     - `should_allow_entry(strategy, zone) -> bool`
-     - `should_add_on(strategy, current_price) -> AddOnSpec | None`
-     - `on_position_opened(order, strategy) -> None`
-     - `on_position_closed(order, strategy) -> None`
-   - `AddOnSpec` only needs size (and maybe metadata), since it modifies one position.
-   - Keep this in a new helper module (e.g., `helping_functions/pyramiding.py`) or inside `FVG_strategy.py` if you want less files.
+## Implementation Plan
 
-2) Core changes to FVG_Strategy (later; not now)
-   - Add a `pyramiding` attribute on the Strategy instance.
-     - Default: "no pyramiding" policy.
-   - Inside `entry_logic()`, replace the existing "one-order" guard:
-     - Instead of `if len(active_orders) > 0: return`,
-       call `self.pyramiding.should_allow_entry(self, zone)` and use that boolean.
-   - After placing an order, call `self.pyramiding.on_position_opened(order, self)`.
-   - During `update_price()` or `bar_iteration()`, call
-     - `self.pyramiding.should_add_on(self, current_price)` to get a single add-on size
-     - apply it to the existing order (increase `order_size`)
-   - This keeps entry logic centralized and avoids subclass overrides.
+1. **Add configuration constants in `FVG_strategy.py**`
+  - Add new constants near the existing configuration block:
+    - `EACH_TRADE_SIZE` (child order size)
+    - `PARTIAL_TP_ATR_STEP` (X in ATR multiples for favorable partials)
+    - `PARTIAL_SL_ATR_STEP` (Y in ATR multiples for adverse partials)
+    - Optional toggle(s): `ENABLE_PARTIAL_TP`, `ENABLE_PARTIAL_SL` (if you want to quickly enable/disable each direction).
+  - Keep names descriptive and consistent with existing settings like `SL_MULTIPLIER`, `TP_MULTIPLIER`.
+2. **Validate fixed-lot split requirements early**
+  - In `FVG_Strategy.__init__` (or a helper called from it), validate:
+    - `USE_FIXED_LOT` must be `True` for this mode.
+    - `FIXED_LOT` is a multiple of `EACH_TRADE_SIZE`.
+  - If invalid, raise a `ValueError` with a clear message explaining the mismatch and the required relationship.
+3. **Split entry into multiple child orders**
+  - In `FVG_Strategy.entry_logic`, when creating orders:
+    - Compute `num_orders = FIXED_LOT / EACH_TRADE_SIZE`.
+    - Instead of one order, open `num_orders` separate orders of size `EACH_TRADE_SIZE`.
+    - Each child order should record:
+      - `entry_price`, `entry_atr`, `take_profit`, `stop_loss`, `trailing_stop_loss` (same as now).
+      - A shared reference point for **original entry price** if needed for partial close logic.
+  - Ensure pyramiding logic still works with multiple active orders (it already iterates a list).
+4. **Track partial-close steps per order**
+  - Extend `FVG_Order` to track:
+    - `entry_reference_price` (use the original entry price for step calculations).
+    - `next_tp_step_idx` and `next_sl_step_idx` (step counters starting at 1).
+  - Initialize these on order creation.
+5. **Implement partial-close checks in `FVG_Order.check_close_conditions**`
+  - After existing TP/SL/Trailing checks, add logic for ATR-step partial closes:
+    - Compute favorable and adverse thresholds based on `entry_reference_price` and `entry_atr`:
+      - For BUY: favorable threshold = `entry + (PARTIAL_TP_ATR_STEP * entry_atr * next_tp_step_idx)`.
+      - For BUY: adverse threshold = `entry - (PARTIAL_SL_ATR_STEP * entry_atr * next_sl_step_idx)`.
+      - Reverse for SELL.
+    - If price crosses favorable threshold, **close this child order** and increment `next_tp_step_idx`.
+    - If price crosses adverse threshold, **close this child order** and increment `next_sl_step_idx`.
+  - Ensure TP/SL hard exits still take precedence and end the order immediately.
+6. **Wire partial-close results into strategy bookkeeping**
+  - Confirm that existing loops in `FVG_Strategy.update_price` and `FVG_Backtest.run` already close orders independently (they do).
+  - Ensure closing any child order updates:
+    - `pyramiding.on_position_closed` (already called).
+    - `lastPositionWasLong/Short` flags and trade counters (should reflect remaining open orders).
+  - In backtest, ensure trade logs and account balance updates reflect each closed child order.
+7. **Backtest and broker integration checks**
+  - `FVG_Backtest`:
+    - Verify that `BacktestOrder.close_order` uses `order_size` (child size) for PnL, which is correct for partial closes.
+  - `FVG_projectX.py`:
+    - Ensure order placement uses `order_size` for the request; no reduce-position operations are required.
+8. **Add minimal documentation in PLAN.md and test guidance**
+  - Note the new constants and required fixed-lot multiple behavior.
+  - Suggest a quick backtest scenario with a known dataset and small `EACH_TRADE_SIZE` to observe multiple child orders closing at ATR steps.
 
-3) Where to keep client-only constants
-   - Add in `FVG_strategy.py`:
-     - `ALLOW_PYRAMIDING = False`
-     - `PYR_ATR_STEP = 1.0`
-     - `PYR_ADD_ON_SIZE = 0.001` (or percent config)
-     - `PYR_MAX_ADDS = 3` (optional)
-   - These are the only pyramiding constants in core strategy.
+## Critical Code References
 
-4) How your alternate behavior fits (without duplicating/overriding)
-   - Use a different pyramiding policy object assigned in Binance runner:
-     - In `Binance_Strategy.__init__` or `init_api`, set
-       `self.pyramiding = MaxOrdersPolicy(max_orders=N)`.
-   - `MaxOrdersPolicy.should_allow_entry` returns `len(active_orders) < max_orders`.
-   - It does not do add-on logic; it just allows multiple entries.
-   - No `entry_logic()` override required.
-   - No code duplication: `entry_logic()` still opens orders based on FVG zones and marks them mitigated.
+- Order close flow: `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/FVG_strategy.py` (method `FVG_Order.check_close_conditions`).
+- Entry logic / order creation: `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/FVG_strategy.py` (method `entry_logic`).
+- Backtest order accounting: `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/backtest/FVG_backtest.py` (`BacktestOrder.close_order`, `_record_trade`).
+- Broker order placement: `/home/bruno/programming/python/tradingBots/FVG_projectX_bot/projectX/FVG_projectX.py` (`ProjectX_Order.place_order`).
 
-5) Detailed policy behavior
-   A) Client pyramiding policy (ATR add-ons, single position logic)
-   - Track per-position "next add price" using entry ATR.
-     - For long: `next_add = entry_price + (entry_atr * PYR_ATR_STEP * n)`
-     - For short: `next_add = entry_price - (entry_atr * PYR_ATR_STEP * n)`
-   - Each time price crosses next_add, treat it as adding to the same position:
-     - Logically, we increase the position size on the original order object.
-     - Operationally, the broker will place a new order in the same direction.
-   - Use the same direction as the original order.
-   - Maintain a counter of adds per position.
-   - Do not add if:
-     - `ALLOW_PYRAMIDING` is False
-     - `max adds` reached
-     - price is not in profit relative to entry
-   - Stops/TP/trailing remain attached to this single position.
-   - Later, partial reductions can reduce the same `order_size` without spawning new orders.
+## Optional Mermaid (Data Flow)
 
-   B) Max orders policy (your mode)
-   - No add-on logic.
-   - `should_allow_entry`: returns True if `len(active_orders) < MAX_OPEN_ORDERS`.
-   - No special tracking.
-   - Can coexist with zone mitigation: once a zone triggers, it is still marked mitigated, so multiple entries require multiple zones.
-
-6) Order management impact (important)
-   - For client pyramiding as a single position, the current logic (using only
-     `active_orders[0]`) still works because there is only one position object.
-   - For your multi-order mode, updates must still iterate all active orders.
-
-7) Data needed for ATR add-on triggers
-   - Store entry ATR in the position (already present as `entry_atr` in `FVG_Order`).
-   - Track add count (`pyramid_count`) and next trigger price on the same order object.
-
-8) Backtest considerations
-   - For client mode, position size changes should be logged as add-on events.
-   - Equity updates should reflect increased size when the position closes.
-   - Intracandle vs close-only entry should not affect add-on logic unless explicitly required.
-
-9) Step-by-step implementation plan (future, not now)
-   - Add policy interface and a default NoPyramiding policy.
-   - Insert policy calls in `entry_logic()` and bar/price updates.
-   - Add `ClientAtrPyramidingPolicy` using new constants in `FVG_strategy.py`.
-     - Implementation modifies existing order size instead of creating new orders.
-   - Add `MaxOrdersPolicy` and set it in Binance strategy (user preference).
-   - Update order management only for your multi-order mode.
-   - Add tests or logs to validate add-on triggers and size changes.
-
-Notes
-- The `subscribe()` method on the websocket client is internal; you normally call `kline()`/`continuous_kline()` to subscribe. Not part of pyramiding, but noted here.
+```mermaid
+graph TD
+    EntryLogic[EntryLogic] -->|Create_N_Child_Orders| ActiveOrders
+    ActiveOrders -->|Each_Update| CheckClose
+    CheckClose -->|TP_SL_Trail| CloseOrder
+    CheckClose -->|ATR_Step_TP| CloseOrder
+    CheckClose -->|ATR_Step_SL| CloseOrder
+    CloseOrder --> RecordTrade
+    CloseOrder --> UpdateBalance
+```
 
