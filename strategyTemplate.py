@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import math
 import importlib
 import json
 import os
@@ -31,7 +32,24 @@ class Order(ABC):
         self.stop_loss = stop_loss
         self.trailing_stop_loss = trailing_stop_loss
         self.use_trailing = use_trailing
-        self.order_size = order_size
+        self.order_size = self._normalize_order_size(order_size)
+
+    def _normalize_order_size(self, value):
+        if value is None or isinstance(value, bool):
+            raise ValueError("order_size must be a positive number.")
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"order_size must be numeric, got {value!r}.") from None
+        if not math.isfinite(numeric):
+            raise ValueError(f"order_size must be finite, got {value!r}.")
+        if numeric <= 0:
+            print(
+                "⚠️  order_size rounded to <= 0; "
+                f"clamped {numeric!r} → 1"
+            )
+            numeric = 1.0
+        return numeric
 
     @abstractmethod
     def place_order(self):
