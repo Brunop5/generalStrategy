@@ -1,0 +1,74 @@
+2026-02-21 18:16:50,388 INFO stdout: ✅ API initialized.
+2026-02-21 18:16:50,389 INFO stdout: layer 3 init ran!
+2026-02-21 18:16:50,829 INFO stdout: ✅ API initialized.
+2026-02-21 18:16:50,829 INFO stdout: starting validation thread...
+2026-02-21 18:16:51,273 INFO stdout: ✅ API initialized.
+2026-02-21 18:16:51,275 INFO stdout: layer 3 init ran!
+2026-02-21 18:16:51,275 INFO stdout: layer 3 init ran!
+2026-02-21 18:16:51,675 INFO stdout: layer 2 init
+2026-02-21 18:16:51,676 INFO stdout: layer 1 init ran!
+2026-02-21 18:16:51,718 INFO stdout: ✅ API initialized.
+2026-02-21 18:16:51,719 INFO stdout: starting validation thread...
+2026-02-21 18:16:52,457 INFO stdout: 📊 Loaded 100 bars for CON.F.US.MGC.J26
+2026-02-21 18:16:52,482 INFO stdout: loaded json data
+2026-02-21 18:16:52,569 INFO stdout: layer 2 init
+2026-02-21 18:16:52,569 INFO stdout: layer 1 init ran!
+2026-02-21 18:16:52,572 INFO stdout: layer 2 init
+2026-02-21 18:16:52,572 INFO stdout: layer 1 init ran!
+2026-02-21 18:16:52,900 INFO stdout: Error fetching data: 401 -
+2026-02-21 18:16:52,938 INFO stdout: strat initializeds
+2026-02-21 18:16:52,938 INFO stdout: 
+============================================================
+2026-02-21 18:16:52,938 INFO stdout: 🤖 Trading Bot Started for CON.F.US.MGC.J26
+2026-02-21 18:16:52,938 INFO stdout: ============================================================
+2026-02-21 18:16:52,938 INFO stdout: Timeframe: 15min
+2026-02-21 18:16:52,939 INFO stdout: HTF Bias: 30min | EMA Period: 15
+2026-02-21 18:16:52,940 INFO stdout: subscribed
+2026-02-21 18:16:53,342 INFO stdout: 📊 Loaded 100 bars for CON.F.US.MNQ.H26
+2026-02-21 18:16:53,434 INFO stdout: 📊 Loaded 100 bars for CON.F.US.MGC.J26
+2026-02-21 18:16:54,304 INFO stdout: strat initializeds
+2026-02-21 18:16:54,304 INFO stdout: 
+============================================================
+2026-02-21 18:16:54,304 INFO stdout: 🤖 Trading Bot Started for CON.F.US.MNQ.H26
+2026-02-21 18:16:54,304 INFO stdout: ============================================================
+2026-02-21 18:16:54,305 INFO stdout: Timeframe: 15min
+2026-02-21 18:16:54,305 INFO stdout: HTF Bias: 30min | EMA Period: 15
+2026-02-21 18:16:54,305 INFO stdout: subscribed
+2026-02-21 18:16:54,726 INFO stdout: strat initializeds
+2026-02-21 18:16:54,726 INFO stdout: 
+============================================================
+2026-02-21 18:16:54,726 INFO stdout: 🤖 Trading Bot Started for CON.F.US.MGC.J26
+2026-02-21 18:16:54,726 INFO stdout: ============================================================
+2026-02-21 18:16:54,726 INFO stdout: Timeframe: 15min
+2026-02-21 18:16:54,726 INFO stdout: HTF Bias: 30min | EMA Period: 15
+2026-02-21 18:16:54,726 INFO stdout: subscribed
+2026-02-21 18:17:01,105 ERROR exceptions: Uncaught exception
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/mnt/LibraryOfAlexandria/programming/python/trading_bots/FVG_projectX_bot/projectX/FVG_projectX.py", line 629, in <module>
+    sleep(5)
+    ~~~~~^^^
+KeyboardInterrupt
+2026-02-25 18:38:13,278 INFO stdout: ✅ API initialized.
+2026-02-25 18:38:13,279 INFO stdout: layer 3 init ran!
+2026-02-25 18:38:14,121 INFO stdout: layer 2 init
+2026-02-25 18:38:14,122 INFO stdout: layer 1 init ran!
+2026-02-25 18:38:44,453 INFO stdout: Request error: HTTPSConnectionPool(host='api.topstepx.com', port=443): Read timed out. (read timeout=30)
+2026-02-25 18:38:44,453 INFO stdout: ⚠️  Initial data fetch failed; starting with empty dataset.
+2026-02-25 18:38:44,456 INFO stdout: 📊 Loaded 0 bars for CON.F.US.MGC.J26
+2026-02-25 18:38:44,515 INFO stdout: loaded json data
+2026-02-25 18:38:44,949 INFO stdout: Error fetching data: 401 -
+2026-02-25 18:38:45,017 INFO stdout: strat initializeds
+2026-02-25 18:38:45,435 ERROR exceptions: Uncaught exception
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/mnt/LibraryOfAlexandria/programming/python/trading_bots/FVG_projectX_bot/projectX/FVG_projectX.py", line 640, in <module>
+    data = strat.get_assets()
+  File "/mnt/LibraryOfAlexandria/programming/python/trading_bots/FVG_projectX_bot/projectX/FVG_projectX.py", line 287, in get_assets
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/mnt/LibraryOfAlexandria/programming/python/trading_bots/.venv/lib/python3.13/site-packages/requests/models.py", line 1026, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://api.topstepx.com/api/Contract/available
