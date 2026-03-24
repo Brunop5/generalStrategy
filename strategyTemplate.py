@@ -14,7 +14,6 @@ class Order(ABC):
     take_profit: float | None
     stop_loss: float | None
     trailing_stop_loss: float | None
-    use_trailing: bool
     order_size: float
 
     def __init__(self, 
@@ -24,17 +23,15 @@ class Order(ABC):
         take_profit=None,
         stop_loss=None,
         trailing_stop_loss=None,
-        use_trailing=False,
     ):
         self.side = side
         self.take_profit = take_profit
         self.entry_price = entry_price
         self.stop_loss = stop_loss
         self.trailing_stop_loss = trailing_stop_loss
-        self.use_trailing = use_trailing
-        self.order_size = self._normalize_order_size(order_size)
+        self.order_size = self._validate_order_size(order_size)
 
-    def _normalize_order_size(self, value):
+    def _validate_order_size(self, value):
         if value is None or isinstance(value, bool):
             raise ValueError("order_size must be a positive number.")
         try:
@@ -72,6 +69,8 @@ class Strategy(ABC):
     account_balance: float
     active_orders: list[Order]
     data: pd.DataFrame | None
+    metadata_filename: str
+    csv_filename: str
 
     def __init__(self):
         print("layer 1 init ran!")
