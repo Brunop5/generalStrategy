@@ -3,8 +3,11 @@ import math
 import importlib
 import json
 import os
+import logging
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # A general abstract class for Order and Strategy of any kind with any broker
 
@@ -41,7 +44,7 @@ class Order(ABC):
         if not math.isfinite(numeric):
             raise ValueError(f"order_size must be finite, got {value!r}.")
         if numeric <= 0:
-            print(
+            logger.debug(
                 "⚠️  order_size rounded to <= 0; "
                 f"clamped {numeric!r} → 1"
             )
@@ -57,7 +60,7 @@ class Order(ABC):
         pass
 
     @abstractmethod
-    def check_close_conditions(self, log=print, **kwargs) -> bool:
+    def check_close_conditions(self, **kwargs) -> bool:
         """
         returns True if the conditions were met and the order was closed
         """
@@ -73,9 +76,8 @@ class Strategy(ABC):
     csv_filename: str
 
     def __init__(self):
-        print("layer 1 init ran!")
         self.data = self.gather_data()
-        print(f"📊 Loaded {len(self.data)} bars for {self.asset}")
+        logger.debug(f"📊 Loaded {len(self.data)} bars for {self.asset}")
 
         if not self.load_metadata():
             self.active_orders = []
@@ -200,7 +202,7 @@ class Strategy(ABC):
         for key, val in payload.items():
             setattr(self, key, self._deserialize(val))
 
-        print("loaded json data")
+        logger.debug("loaded json data")
         return True
 
 
