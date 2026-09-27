@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 import math
 import importlib
 import json
 import os
 import logging
+from typing import Any
 
 import pandas as pd
 
@@ -19,22 +22,23 @@ class Order(ABC):
     trailing_stop_loss: float | None
     order_size: float
 
-    def __init__(self, 
-        side, 
-        entry_price, 
-        order_size, 
-        take_profit=None,
-        stop_loss=None,
-        trailing_stop_loss=None,
-    ):
+    def __init__(
+        self,
+        side: str,
+        entry_price: float,
+        order_size: float,
+        take_profit: float | None = None,
+        stop_loss: float | None = None,
+        trailing_stop_loss: float | None = None,
+    ) -> None:
         self.side = side
         self.take_profit = take_profit
         self.entry_price = entry_price
         self.stop_loss = stop_loss
         self.trailing_stop_loss = trailing_stop_loss
-        self.order_size = self._validate_order_size(order_size)
+        self.order_size = self._normalize_order_size(order_size)
 
-    def _validate_order_size(self, value):
+    def _normalize_order_size(self, value: Any) -> float:
         if value is None or isinstance(value, bool):
             raise ValueError("order_size must be a positive number.")
         try:
@@ -52,15 +56,15 @@ class Order(ABC):
         return numeric
 
     @abstractmethod
-    def place_order(self):
+    def place_order(self) -> Any:
         pass
 
     @abstractmethod
-    def close_order(self):
+    def close_order(self) -> Any:
         pass
 
     @abstractmethod
-    def check_close_conditions(self, **kwargs) -> bool:
+    def check_close_conditions(self, **kwargs: Any) -> bool:
         """
         returns True if the conditions were met and the order was closed
         """
@@ -72,10 +76,12 @@ class Strategy(ABC):
     account_balance: float
     active_orders: list[Order]
     data: pd.DataFrame | None
-    metadata_filename: str
+    # Set by concrete runners before / during subclass __init__.
+    asset: str
     csv_filename: str
+    metadata_filename: str
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data = self.gather_data()
         logger.debug(f"📊 Loaded {len(self.data)} bars for {self.asset}")
 
@@ -84,7 +90,7 @@ class Strategy(ABC):
 
 
 
-    def _serialize(self, value, csv_filename: str):
+    def _serialize(self, value: Any, csv_filename: str) -> Any:
         if isinstance(value, (str, int, float, bool)) or value is None:
             return value
 
@@ -123,7 +129,7 @@ class Strategy(ABC):
 
         return {"__type__": "repr", "value": repr(value)}
 
-    def _deserialize(self, value):
+    def _deserialize(self, value: Any) -> Any:
         if isinstance(value, list):
             return [self._deserialize(item) for item in value]
 
@@ -133,7 +139,7 @@ class Strategy(ABC):
         value_type = value.get("__type__")
         if value_type == "dataframe_csv":
             path = value.get("path")
-            if path and os.path.exists(path):
+            if isinstance(path, str) and os.path.exists(path):
                 return pd.read_csv(path)
             return pd.DataFrame()
 
@@ -146,6 +152,8 @@ class Strategy(ABC):
         if value_type == "object":
             class_path = value.get("class")
             state = self._deserialize(value.get("state", {}))
+            if not isinstance(class_path, str):
+                return {"__unresolved_class__": class_path, "state": state}
             try:
                 module_name, class_name = class_path.rsplit(".", 1)
                 module = importlib.import_module(module_name)
@@ -163,18 +171,28 @@ class Strategy(ABC):
 
         return {key: self._deserialize(val) for key, val in value.items()}
 
+    # Never persist credentials / live auth into runtime JSON snapshots.
+    _SAVE_SKIP_KEYS = frozenset({
+        "auth_token",
+        "api_key",
+        "api_secret",
+        "password",
+        "token",
+    })
+
     def save_data(self) -> None:
         """
         Saves information about current strategy to a json file,
         also saves the self.data into a csv.
         Skips attributes that are not JSON-serializable (e.g. threading.Lock).
         """
-        if isinstance(getattr(self, "data", None), pd.DataFrame):
-            self.data.to_csv(self.csv_filename, index=False)
+        data = self.data
+        if isinstance(data, pd.DataFrame):
+            data.to_csv(self.csv_filename, index=False)
 
-        payload = {}
+        payload: dict[str, Any] = {}
         for key, val in self.__dict__.items():
-            if key.startswith("_"):
+            if key.startswith("_") or key in self._SAVE_SKIP_KEYS:
                 continue
             try:
                 serialized = self._serialize(val, self.csv_filename)
@@ -199,7 +217,12 @@ class Strategy(ABC):
         with open(self.metadata_filename, "r", encoding="utf-8") as f:
             payload = json.load(f)
 
+        if not isinstance(payload, dict):
+            return False
+
         for key, val in payload.items():
+            if key in self._SAVE_SKIP_KEYS:
+                continue
             setattr(self, key, self._deserialize(val))
 
         logger.debug("loaded json data")
@@ -218,14 +241,14 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def update_indicators(self):
+    def update_indicators(self) -> None:
         """
         Updates the indicators deciding if a trade should be made
         """
         pass
 
     @abstractmethod
-    def calculate_order_size(self, **kwargs):
+    def calculate_order_size(self, **kwargs: Any) -> float:
         """
         Calculates the order size based on broker requirements 
         and maybe some other specifications
@@ -233,7 +256,7 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def entry_logic(self):
+    def entry_logic(self) -> None:
         """
         A complete entry logic of the strategy.
         Should create an Order object and add it to active_orders if conditions are met
@@ -241,7 +264,7 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def run(self):
+    def run(self) -> None:
         """
         Starts running the strategy. Due to the generalisation this can mean connection to websocket
         for depth data, starting multiple threads for price gathering, just getting ohlcv data every 
