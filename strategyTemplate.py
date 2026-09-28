@@ -172,12 +172,15 @@ class Strategy(ABC):
         return {key: self._deserialize(val) for key, val in value.items()}
 
     # Never persist credentials / live auth into runtime JSON snapshots.
+    # Also never persist live Config / env wiring — reload from inputs.json + .env.
     _SAVE_SKIP_KEYS = frozenset({
         "auth_token",
         "api_key",
         "api_secret",
         "password",
         "token",
+        "cfg",
+        "username",
     })
 
     def save_data(self) -> None:
