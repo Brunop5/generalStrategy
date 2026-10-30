@@ -121,10 +121,16 @@ class Strategy(ABC):
 
         if isinstance(value, Order) or hasattr(value, "__dict__"):
             class_path = f"{value.__class__.__module__}.{value.__class__.__name__}"
+            # Strip credentials from nested objects too (orders embed auth_token).
+            state = {
+                key: val
+                for key, val in value.__dict__.items()
+                if not str(key).startswith("_") and key not in self._SAVE_SKIP_KEYS
+            }
             return {
                 "__type__": "object",
                 "class": class_path,
-                "state": self._serialize(value.__dict__, csv_filename),
+                "state": self._serialize(state, csv_filename),
             }
 
         return {"__type__": "repr", "value": repr(value)}
